@@ -1,3 +1,8 @@
+name = "MRSTAT"
+uuid = "d3e4dab5-0629-455b-a040-39e4893bdd4b"
+authors = ["Oscar van der Heide (o.vanderheide@umcutrecht.nl)"]
+version = "0.1.0"
+
 [deps]
 BlochSimulators = "2c9a3a5d-4a8d-4ca7-a6c9-04a38836deab"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
@@ -17,3 +22,4 @@ TickTock = "9ff05d80-102d-5586-aa04-3a8bd1a90d20"
 
 [compat]
 BlochSimulators = "0.2.7"
+
