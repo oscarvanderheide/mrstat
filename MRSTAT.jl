@@ -1,29 +1,30 @@
-using Revise
+module MRSTAT
+
 using BlochSimulators
 using StaticArrays, LinearAlgebra, Statistics, StructArrays
 using LinearMaps
-using ImagePhantoms
-using PythonPlot
 using ComputationalResources
+using PythonPlot
 
-includet("TrustRegionReflective/TrustRegionReflective.jl")
-includet("DerivativeOperations/DerivativeOperations.jl")
+include("TrustRegionReflective/TrustRegionReflective.jl")
+include("DerivativeOperations/DerivativeOperations.jl")
 
 using .TrustRegionReflective
 using .DerivativeOperations
 
-includet("utils/make_phantom.jl")
-includet("utils/objective.jl")
-includet("utils/RelaxationColors.jl")
-includet("utils/pythonplot.jl")
+include("utils/make_phantom.jl")
+include("utils/objective.jl")
+include("utils/pythonplot.jl")
 
-# Simulation size
+function main()
+
+    # Simulation size
 
     N = 224; # phantom of size N^2
     K = 5; # number of fully sampled Cartesian "transient-state k-spaces"
     nTR = K*N; # total number of TRs
 
-# Make sequence
+    # Make sequence
 
     RF_train = range(start=1,stop=90,length=nTR) .|> complex;
     sliceprofiles = ones(nTR,1) .|> complex;
@@ -35,7 +36,7 @@ includet("utils/pythonplot.jl")
     # assemble sequence struct
     sequence = FISP2D(RF_train, sliceprofiles, TR, TE, max_state, TI) |> f32 |> gpu;
 
-# Make coordinates
+    # Make coordinates
 
     FOVˣ = 22.4 # cm
     FOVʸ = 22.4 # cm
@@ -46,7 +47,7 @@ includet("utils/pythonplot.jl")
 
     coordinates = tuple.(x,y');
 
-# Make trajectory
+    # Make trajectory
 
     # dwell time between samples within readout
     Δt = 5e-6
@@ -70,13 +71,13 @@ includet("utils/pythonplot.jl")
 
     trajectory = CartesianTrajectory(nreadouts, nsamplesperreadout, Δt, k_start_readout, Δk_adc, py)
 
-# Make phantom
+    # Make phantom
 
     phantom = make_phantom(N, coordinates);
 
     plot_T₁T₂ρ(phantom, N, N, "Ground truth")
 
-# Make coil sensitivities
+    # Make coil sensitivities
 
     ncoils = 1
     coil_sensitivities = rand((0.75:0.01:1.25), ncoils,N^2) .|> complex
@@ -89,7 +90,7 @@ includet("utils/pythonplot.jl")
 
     coil_sensitivities = map(SVector{2}, vec(coil₁), vec(coil₂))
 
-# Set precision and send to gpu
+    # Set precision and send to gpu
 
     phantom             = gpu(f32(vec(phantom)))
     sequence            = gpu(f32(sequence))
@@ -97,13 +98,13 @@ includet("utils/pythonplot.jl")
     coil_sensitivities  = gpu(f32(coil_sensitivities))
     coordinates         = gpu(f32(vec(coordinates)))
 
-# Simulate data
+    # Simulate data
     resource = CUDALibs()
     raw_data = simulate_signal(resource, sequence, phantom, trajectory, coil_sensitivities)
 
-# Add noise?
+    # Add noise?
 
-# Set reconstruction options
+    # Set reconstruction options
 
     x0 = T₁T₂ρˣρʸ(log(1.0), log(0.100),  1.0,  0.0) # note the logarithmic scaling to T1 and T2
     LB = T₁T₂ρˣρʸ(log(0.1), log(0.001), -Inf, -Inf) # note the logarithmic scaling to T1 and T2
@@ -142,7 +143,12 @@ includet("utils/pythonplot.jl")
 
     plotfun(x0, "Initial Guess")
 
-# Run non-linear solver
+    # Run non-linear solver
 
     output = TrustRegionReflective.solver(objfun, vec(x0), vec(LB), vec(UB), TRF_options, plotfun)
 
+    return output
+end
+
+
+end

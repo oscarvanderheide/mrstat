@@ -4,10 +4,11 @@ This repository contains an implementation of the partially-matrix free, inexact
 
 ## Warning:
 - This codebase uses an older version of BlochSimulators (v0.2.7), make sure to `instantiate` the environment as defined in the manifest.
+- This codebase is structured as a (non-registered) Julia package. 
 - This codebase assumes a CUDA device is available.
 
 ## Structure:
-- Only the `main.jl` needs be run. It loads external packages and several functions, assembles a FISP sequence, a Cartesian trajectory and a numerical phantom (including spatial coordinates and coil sensitivity profiles). It generates (noiseless) data. An MR-STAT reconstruction is then performed on the generated data.
+- Only the `MRSTAT.main` needs be run. It loads external packages and several functions, assembles a FISP sequence, a Cartesian trajectory and a numerical phantom (including spatial coordinates and coil sensitivity profiles). It generates (noiseless) data. An MR-STAT reconstruction is then performed on the generated data.
 - The objective function is defined in `utils/objective.jl`. This function is also used by the non-linear solver to calculate the gradient of the objective and the (Gauss-Newton approximation to) the Hessian.
 - Bloch simulations (in case of FISP: EPG simulations) are performed using the `BlochSimulators.jl` package. 
 - Partial derivatives are calculated using a finite difference approach, see `DerivativeOperations/simulate_derivatives.jl`.
