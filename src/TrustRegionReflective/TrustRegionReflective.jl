@@ -1,30 +1,30 @@
 module TrustRegionReflective
 
-    # Registered modules
-    using Memento
-    using LinearAlgebra
-    using StaticArrays
-    using Statistics
-    using TickTock
+# Registered modules
+using Memento
+using LinearAlgebra
+using StaticArrays
+using Statistics
+using TickTock
 
-    struct SolverOptions{T,I,B}
-        min_ratio::T
-        max_iter_trf::I
-        max_iter_steihaug::I
-        tol_steihaug::T
-        init_scale_radius::T
-        save_every_iter::B
-    end
+@kwdef struct SolverOptions{T,I,B}
+    min_ratio::T = 0.05
+    max_iter_trf::I = 20
+    max_iter_steihaug::I = 20
+    tol_steihaug::T = 0.1
+    init_scale_radius::T = 0.1
+    save_every_iter::B = false
+end
 
-    mutable struct SolverOutput
-        x # parameters
-        f # cost
-        r # residual vector
-        t # elapsed time (s)
-    end
+mutable struct SolverOutput
+    x # parameters
+    f # cost
+    r # residual vector
+    t # elapsed time (s)
+end
 
-    include("utils.jl")
-    include("solver.jl")
-    include("steihaug.jl")
+include("utils.jl")
+include("solver.jl")
+include("steihaug.jl")
 
 end # module
