@@ -2,6 +2,14 @@
 
 This repository contains an implementation of the partially-matrix free, inexact Gauss-Newton algorithm that can be used for MR-STAT. It use a 2D numerical brain phantom to generate synthetic data from which it then estimates $T_1$, $T_2$ and proton density. It only supports Cartesian readout trajectories at the moment. The reconstruction makes use of [BlochSimulators.jl](https://github.com/oscarvanderheide/BlochSimulators.jl) and should be able to run on modern NVIDIA GPU hardware.
 
+## Installation:
+
+This package is not registered in Julia's General registry. It can be installed with
+
+```julia
+>pkg add https://github.com/oscarvanderheide/mrstat.git
+```
+
 ## Warning:
 - This codebase uses an older version of BlochSimulators (v0.2.7), make sure to `instantiate` the environment as defined in the manifest.
 - This codebase is structured as a (non-registered) Julia package. 
