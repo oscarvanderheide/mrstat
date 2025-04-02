@@ -5,6 +5,8 @@ using StaticArrays, LinearAlgebra, Statistics, StructArrays
 using LinearMaps
 using ComputationalResources
 using ImagePhantoms
+using PythonPlot
+using QMRIColors
 
 include("TrustRegionReflective/TrustRegionReflective.jl")
 include("DerivativeOperations/DerivativeOperations.jl")
@@ -14,7 +16,8 @@ using .DerivativeOperations
 
 include("utils/make_phantom.jl")
 include("utils/objective.jl")
-# include("utils/pythonplot.jl")
+# include("utils/RelaxationColors.jl")
+include("utils/pythonplot.jl")
 include("utils/simulation_data.jl")
 
 function mrstat_recon(
@@ -31,10 +34,10 @@ function mrstat_recon(
 
     # Repeat the initial guess and bounds for each voxel
     # Note: x0, LB and UB are in log space for T₁ and T₂
-    nr_voxels = length(coordinates)
-    x0 = repeat(x0', nr_voxels) |> f32
-    LB = repeat(LB', nr_voxels) |> f32
-    UB = repeat(UB', nr_voxels) |> f32
+    num_voxels = length(coordinates)
+    x0 = repeat(x0', num_voxels) |> f32
+    LB = repeat(LB', num_voxels) |> f32
+    UB = repeat(UB', num_voxels) |> f32
 
     # Check coil sensitivities
     @assert all(Cᵢ -> !iszero(sum(Cᵢ)), coil_sensitivities)
@@ -42,9 +45,9 @@ function mrstat_recon(
     resource = CUDALibs()
     objfun = (x, mode) -> objective(x, resource, mode, raw_data, sequence, coordinates, coil_sensitivities, trajectory)
 
-    # plotfun(x, figtitle) = plot_T₁T₂ρ(optim_to_physical_pars(x), N, N, figtitle)
-    # plotfun(x0, "Initial Guess")
-    plotfun(x, figtitle) = println("Not plotting anything")
+    plotfun(x, figtitle) = plot_T₁T₂ρ(optim_to_physical_pars(x), isqrt(num_voxels), isqrt(num_voxels), figtitle)
+    plotfun(x0, "Initial Guess")
+    # plotfun(x, figtitle) = println("Not plotting anything")
 
     output = TrustRegionReflective.solver(objfun, vec(x0), vec(LB), vec(UB), trf_options, plotfun)
 
