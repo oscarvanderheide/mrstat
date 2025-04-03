@@ -11,7 +11,6 @@ This package is not registered in Julia's General registry. It can be installed 
 ```
 
 ## Warning:
-- This codebase uses an older version of BlochSimulators (v0.2.7), make sure to `instantiate` the environment as defined in the manifest.
 - This codebase is structured as a (non-registered) Julia package. 
 - This codebase assumes a CUDA device is available.
 
