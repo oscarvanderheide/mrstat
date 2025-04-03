@@ -3,7 +3,7 @@ lipari = QMRIColors.relaxationColorMap("T1")
 navia = QMRIColors.relaxationColorMap("T2")
 
 
-function plot_T₁T₂ρ(x::AbstractArray{<:AbstractTissueParameters}, Nx, Ny, figtitle="")
+function plot_T₁T₂ρ(x::AbstractArray{<:AbstractTissueProperties}, Nx, Ny, figtitle="")
 
     # translating the colormap to a format digestible by PythonPlot
     cmap_lipari = PythonPlot.ColorMap("lipari", lipari, length(lipari), 1.0)

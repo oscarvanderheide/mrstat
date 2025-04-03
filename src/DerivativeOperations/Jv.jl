@@ -2,9 +2,10 @@ function Jv(resource::CUDALibs,
     echos,
     ∂echos,
     parameters,
-    coil_sensitivities::AbstractArray{SVector{Nc}{T}},
+    coil_sensitivities,
     trajectory,
-    v) where {Nc,T<:Complex}
+    coordinates,
+    v)
 
     # assumes all structs/arrays are sent to GPU before
 
@@ -14,13 +15,13 @@ function Jv(resource::CUDALibs,
     nr_blocks = cld(nsamples(trajectory), THREADS_PER_BLOCK)
 
     CUDA.@sync begin
-        @cuda blocks=nr_blocks threads=THREADS_PER_BLOCK Jv_kernel!(Jv, echos, ∂echos, parameters, coil_sensitivities, trajectory, v)
+        @cuda blocks=nr_blocks threads=THREADS_PER_BLOCK Jv_kernel!(Jv, echos, ∂echos, parameters, coil_sensitivities, trajectory, coordinates, v)
     end
 
     return Jv
 end
 
-function Jv_kernel!(Jv, echos, ∂echos, parameters, coil_sensitivities::AbstractArray{SVector{Nc}{T}}, trajectory,v) where {T,Nc}
+function Jv_kernel!(Jv, echos::AbstractArray{T}, ∂echos, parameters, coil_sensitivities, trajectory, coordinates, v) where {T<:Complex}
 
     i = global_id() # global sample point index
 
@@ -34,21 +35,21 @@ function Jv_kernel!(Jv, echos, ∂echos, parameters, coil_sensitivities::Abstrac
         s = mod1(i,ns) # determine which sample within readout
         nv = length(parameters) # nr of voxels
         # v is assumed to be an array of ... SVectors?
-        jv = zero(MVector{Nc}{T})
+        jv = zero(MVector{NUM_COILS}{T})
 
         @inbounds for voxel ∈ 1:nv
 
             # load coordinates, parameters, coilsensitivities and proton density for voxel
             p = parameters[voxel]
             ρ = complex(p.ρˣ,p.ρʸ)
-            # x,y = coordinates[voxel]
+            coord = coordinates[voxel]
             C = coil_sensitivities[voxel]
             # R₂ = inv(p.T₂)
             # load magnetization and partial derivatives at echo time of the r-th readout
             m  =  echos[r,voxel]
             ∂m = ∂echos[r,voxel]
             # compute decay (T₂) and rotation (gradients and B₀) to go to sample point
-            m, ∂m = ∂to_sample_point(m, ∂m, trajectory, r, s, p)
+            m, ∂m = ∂to_sample_point(m, ∂m, trajectory, r, s, p, coord.x)
             # store magnetization from this voxel, scaled with v (~ proton density) and C in accumulator
             ∂mv = v[voxel] .* ∂mˣʸ∂T₁T₂ρˣρʸ(∂m.∂T₁, ∂m.∂T₂, m, m*im)
             for c in eachindex(C)
@@ -64,14 +65,13 @@ function Jv_kernel!(Jv, echos, ∂echos, parameters, coil_sensitivities::Abstrac
     nothing
 end
 
-@inline function ∂to_sample_point(mₑ, ∂mₑ::∂mˣʸ∂T₁T₂, trajectory::CartesianTrajectory, readout_idx, sample_idx, p)
+@inline function ∂to_sample_point(mₑ, ∂mₑ::∂mˣʸ∂T₁T₂, trajectory::CartesianTrajectory2D, readout_idx, sample_idx, p, x)
 
     # Read in constants
     R₂ = inv(p.T₂)
     ns = nsamplesperreadout(trajectory, readout_idx)
     Δt = trajectory.Δt
     Δkₓ = trajectory.Δk_adc
-    x = p.x
 
     # There are ns samples per readout, echo time is assumed to occur
     # at index (ns÷2)+1. Now compute sample index relative to the echo time

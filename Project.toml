@@ -22,5 +22,5 @@ StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
 TickTock = "9ff05d80-102d-5586-aa04-3a8bd1a90d20"
 
 [compat]
-BlochSimulators = "0.2.7"
+BlochSimulators = "0.6.4"
 julia = "1.10"

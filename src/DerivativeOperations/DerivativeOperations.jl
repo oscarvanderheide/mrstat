@@ -10,11 +10,13 @@ module DerivativeOperations
 
     using BlochSimulators
 
+    const NUM_COILS = 1
+
     include("types.jl")
     include("simulate_derivatives.jl")
 
     include("Jv.jl")
-    include("Jᴴv.jl")
+    include("Jhv.jl")
 
     @inline global_id() = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     const THREADS_PER_BLOCK = 64

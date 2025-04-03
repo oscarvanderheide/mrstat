@@ -1,5 +1,5 @@
 
-function Jᴴv(::CUDALibs, echos::AbstractArray{T}, ∂echos, parameters, coil_sensitivities, trajectory, v) where T
+function Jᴴv(::CUDALibs, echos::AbstractArray{T}, ∂echos, parameters, coil_sensitivities, trajectory, coordinates, v) where {T<:Complex}
 
     # assumes all structs/arrays are sent to GPU before
 
@@ -12,18 +12,32 @@ function Jᴴv(::CUDALibs, echos::AbstractArray{T}, ∂echos, parameters, coil_s
     nr_blocks = cld(nv, THREADS_PER_BLOCK)
 
     CUDA.@sync begin
-        @cuda blocks=nr_blocks threads=THREADS_PER_BLOCK Jᴴv_kernel!(Jᴴv, echos, ∂echos, parameters, coil_sensitivities, trajectory, v)
+        @cuda blocks=nr_blocks threads=THREADS_PER_BLOCK Jᴴv_kernel!(
+            Jᴴv, 
+            echos, 
+            ∂echos,
+            parameters, 
+            coil_sensitivities, 
+            trajectory, 
+            coordinates, 
+            v
+        )
     end
 
     return Array(Jᴴv)
 end
 
-function Jᴴv_kernel!(Jᴴv, echos, ∂echos, parameters, coil_sensitivities::AbstractArray{SVector{Nc}{T}}, trajectory,v) where {T,Nc}
+function test_kernel()
+
+    return nothing
+end
+
+function Jᴴv_kernel!(Jᴴv, echos::AbstractArray{T}, ∂echos, parameters, coil_sensitivities, trajectory, coordinates, v) where {T<:Complex}
 
     # v is a vector of length "nr of measured samples",
     # and each element is a StaticVector of length "nr of coils"
     # output is a vector of length "nr of voxels" with each element
-    #
+    
     voxel = global_id()
 
     @inbounds if voxel <= length(parameters)
@@ -33,11 +47,12 @@ function Jᴴv_kernel!(Jᴴv, echos, ∂echos, parameters, coil_sensitivities::A
 
         # load parameters and spatial coordinates
         p = parameters[voxel]
+        crd = coordinates[voxel]
         c = coil_sensitivities[voxel]
 
         # accumulators
-        mᴴv = zero(SMatrix{1,Nc}{T}{Nc})
-        ∂mᴴv = zero(SMatrix{2,Nc}{T}{2*Nc})
+        mᴴv = zero(SMatrix{1,NUM_COILS}{T}{NUM_COILS})
+        ∂mᴴv = zero(SMatrix{2,NUM_COILS}{T}{2*NUM_COILS})
 
         t = 1
 
@@ -47,7 +62,7 @@ function Jᴴv_kernel!(Jᴴv, echos, ∂echos, parameters, coil_sensitivities::A
             mₑ = echos[readout,voxel]
             ∂mₑ = ∂echos[readout,voxel]
 
-            mᴴv, ∂mᴴv, t = ∂expand_readout_and_accumulate_mᴴv(mᴴv, ∂mᴴv, mₑ, ∂mₑ, p, trajectory, readout, t, v)
+            mᴴv, ∂mᴴv, t = ∂expand_readout_and_accumulate_mᴴv(mᴴv, ∂mᴴv, mₑ, ∂mₑ, p, crd.x, trajectory, readout, t, v)
 
         end # loop over readouts
 
@@ -62,20 +77,19 @@ function Jᴴv_kernel!(Jᴴv, echos, ∂echos, parameters, coil_sensitivities::A
         end
     end
 
-    # # At this point, output is a vector of structs/svectors of the form (∂T₁,∂T₂,...,∂ρˣ,∂ρʸ)
-    # # Convert to a StructArray partial derivatives w.r.t. T₁ can be accessed with .T₁, etc.
-    # # output = StructArray(output)
+    # At this point, output is a vector of structs/svectors of the form (∂T₁,∂T₂,...,∂ρˣ,∂ρʸ)
+    # Convert to a StructArray partial derivatives w.r.t. T₁ can be accessed with .T₁, etc.
+    # output = StructArray(output)
 
-    nothing
+    return nothing
 end
 
-@inline function ∂expand_readout_and_accumulate_mᴴv(mᴴv, ∂mᴴv, mₑ, ∂mₑ, p, trajectory::CartesianTrajectory, readout, t, v)
+@inline function ∂expand_readout_and_accumulate_mᴴv(mᴴv, ∂mᴴv, mₑ, ∂mₑ, p, x,trajectory::CartesianTrajectory2D, readout, t, v)
 
     ns = trajectory.nsamplesperreadout
     Δt = trajectory.Δt
     Δk = trajectory.Δk_adc
     R₂ = inv(p.T₂)
-    x  = p.x
 
     # Gradient rotation per sample point
     θ = Δk * x

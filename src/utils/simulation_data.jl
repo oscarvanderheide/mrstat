@@ -7,7 +7,7 @@ function generate_simulation_data(; N=224, K=5)
     sliceprofiles = ones(nTR, 1) .|> complex
     TR = 0.010
     TE = 0.006
-    max_state = 35
+    max_state = 32
     TI = 0.025
 
     sequence = FISP2D(RF_train, sliceprofiles, TR, TE, max_state, TI) |> f32 |> gpu
@@ -17,9 +17,10 @@ function generate_simulation_data(; N=224, K=5)
     FOVʸ = 22.4 # cm
     Δx = FOVˣ / N # cm
     Δy = FOVˣ / N # cm
-    x = -FOVˣ/2:Δx:FOVˣ/2-Δx # cm
-    y = -FOVʸ/2:Δy:FOVʸ/2-Δy # cm
-    coordinates = tuple.(x, y')
+    x = -FOVˣ/2:Δx:FOVˣ/2-Δx |> collect # cm
+    y = -FOVʸ/2:Δy:FOVʸ/2-Δy |> collect # cm
+    z = [0.0]
+    coordinates = @coordinates x y z # Takes Iterators.product and convert to a StructArray of BlochSimulators.Coordinates
 
     # Make trajectory
     Δt = 5e-6
@@ -32,15 +33,21 @@ function generate_simulation_data(; N=224, K=5)
     k_start_readout = [(-N / 2 * Δkˣ) + im * (py[r] * Δkʸ) for r in 1:nTR]
     Δk_adc = Δkˣ
 
-    trajectory = CartesianTrajectory(nTR, N, Δt, k_start_readout, Δk_adc, py)
+    trajectory = CartesianTrajectory2D(nTR, N, Δt, k_start_readout, Δk_adc, py, 1)
 
     # Make phantom
-    phantom = make_phantom(N, coordinates)
+    phantom = make_phantom(N)
 
     # Make coil sensitivities
     coil₁ = complex.(repeat(LinRange(0.8, 1.2, N), 1, N))
-    coil₂ = coil₁'
-    coil_sensitivities = map(SVector{2}, vec(coil₁), vec(coil₂))
+    if NUM_COILS == 1
+        coil_sensitivities = reshape(coil₁, N^2, 1)
+    elseif NUM_COILS == 2
+        coil₂ = coil₁'
+        coil_sensitivities = [vec(coil₁) ;; vec(coil₂)]
+    else
+        @error "NUM_COILS is not 1 or 2"
+    end
 
     # Set precision and send to gpu
     phantom = gpu(f32(vec(phantom)))
@@ -51,7 +58,8 @@ function generate_simulation_data(; N=224, K=5)
 
     # Simulate data
     resource = CUDALibs()
-    raw_data = simulate_signal(resource, sequence, phantom, trajectory, coil_sensitivities)
+
+    raw_data = simulate_signal(resource, sequence, phantom, trajectory, coordinates, coil_sensitivities)
 
     return raw_data, sequence, coordinates, coil_sensitivities, trajectory
 end

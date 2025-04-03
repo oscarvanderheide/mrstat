@@ -9,7 +9,7 @@ function objective(optimpars::Vector{<:Real}, resource, mode, raw_data, sequence
     # mode 2 -> compute f, r, g and assemble approximate Hessian
 
     # Convert optimpars (Vector{<:Real}) to Vector{<:AbstractTissueParameters} to be used in simulations
-    parameters = optim_to_physical_pars(optimpars, coordinates)
+    parameters = optim_to_physical_pars(optimpars)
 
     # Convert to single precision and send to gpu device
     parameters = gpu(f32(parameters))
@@ -20,13 +20,17 @@ function objective(optimpars::Vector{<:Real}, resource, mode, raw_data, sequence
     if mode == 0
 
         # Apply phase encoding
-        phase_encoding!(echos, trajectory, parameters)
+        phase_encoding!(echos, trajectory, coordinates)
 
         # Compute signal
-        s = magnetization_to_signal(resource, echos, parameters, trajectory, coil_sensitivities)
+        s = magnetization_to_signal(resource, echos, parameters, trajectory, coordinates, coil_sensitivities)
 
         # Compute residual r
         r = s - raw_data;
+
+        # From array to vector of svectors
+        r = reshape(collect(r), :, NUM_COILS)
+        r = map(SVector{NUM_COILS}, eachrow(r)) |> gpu
 
         # Compute cost f
         f = 0.5 * sum(norm.(r).^2);
@@ -39,20 +43,30 @@ function objective(optimpars::Vector{<:Real}, resource, mode, raw_data, sequence
         ∂echos = simulate_derivatives(echos, resource, sequence, parameters)
 
         # Apply phase encoding
-        phase_encoding!(echos, trajectory, parameters)
-        phase_encoding!(∂echos, trajectory, parameters)
+        @show typeof(coordinates)
+        phase_encoding!(echos, trajectory, coordinates)
+        phase_encoding!(∂echos, trajectory, coordinates)
 
         # Compute signal
-        s = magnetization_to_signal(resource, echos, parameters, trajectory, coil_sensitivities)
+        s = magnetization_to_signal(resource, echos, parameters, trajectory, coordinates, coil_sensitivities)
 
         # Compute residual r
         r = s - raw_data;
+
+        # From array to vector of svectors
+        r = reshape(collect(r), :, NUM_COILS)
+        r = map(SVector{NUM_COILS}, eachrow(r)) |> gpu
 
         # Compute cost f
         f = 0.5 * sum(norm.(r).^2);
 
         # Compute gradient
-        g = Jᴴv(resource, echos, ∂echos, parameters, coil_sensitivities, trajectory, r)
+
+
+        coil_sensitivities = collect(coil_sensitivities)
+        coil_sensitivities_svec = map(SVector{NUM_COILS}, eachrow(coil_sensitivities)) |> gpu
+
+        g = Jᴴv(resource, echos, ∂echos, parameters, coil_sensitivities_svec, trajectory, coordinates, r)
         g = StructArray(g)
         g = reduce(vcat,fieldarrays(g))
         g = real.(g)
@@ -65,8 +79,8 @@ function objective(optimpars::Vector{<:Real}, resource, mode, raw_data, sequence
             np = 4 # nr of reconstruction parameters per voxel
             x = reshape(x,:,np)
             x = map(SVector{4}, eachcol(x)...) |> gpu
-            y = Jv(resource, echos, ∂echos, parameters, coil_sensitivities, trajectory, x)
-            z = Jᴴv(resource, echos, ∂echos, parameters, coil_sensitivities, trajectory, y)
+            y = Jv(resource, echos, ∂echos, parameters, coil_sensitivities_svec, trajectory, coordinates, x)
+            z = Jᴴv(resource, echos, ∂echos, parameters, coil_sensitivities_svec, trajectory, coordinates, y)
             return real.(reduce(vcat,fieldarrays(StructArray(z))))
         end
 
@@ -87,18 +101,5 @@ function optim_to_physical_pars(optimpars)
     ρˣ = optimpars[:,3]
     ρʸ = optimpars[:,4]
 
-    return map(T₁T₂ρˣρʸ, T₁, T₂, ρˣ, ρʸ)
-end
-
-function optim_to_physical_pars(optimpars, coordinates)
-
-    optimpars = reshape(optimpars,:,4)
-    T₁ = exp.(optimpars[:,1])
-    T₂ = exp.(optimpars[:,2])
-    ρˣ = optimpars[:,3]
-    ρʸ = optimpars[:,4]
-    x = first.(collect(coordinates))
-    y = last.(collect(coordinates))
-
-    return map(T₁T₂ρˣρʸxy, T₁, T₂, ρˣ, ρʸ, x, y)
+    return map(T₁T₂ρˣρʸ, T₁, T₂, ρˣ, ρʸ) |> StructArray
 end

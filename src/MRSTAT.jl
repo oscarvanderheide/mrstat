@@ -20,17 +20,19 @@ include("utils/objective.jl")
 include("utils/pythonplot.jl")
 include("utils/simulation_data.jl")
 
+const NUM_COILS = 1
+
 function mrstat_recon(
-    raw_data::AbstractVector{<:SVector},
+    raw_data::AbstractArray{T},
     sequence::BlochSimulator,
     coordinates,
-    coil_sensitivities::AbstractVector{<:SVector},
-    trajectory::CartesianTrajectory;
+    coil_sensitivities::AbstractArray{T},
+    trajectory::CartesianTrajectory2D;
     x0=T₁T₂ρˣρʸ(log(1.0), log(0.100), 1.0, 0.0),
     LB=T₁T₂ρˣρʸ(log(0.1), log(0.001), -Inf, -Inf),
     UB=T₁T₂ρˣρʸ(log(7.0), log(3.000), Inf, Inf),
     trf_options=TrustRegionReflective.SolverOptions(),
-)
+) where {T<:Complex}
 
     # Repeat the initial guess and bounds for each voxel
     # Note: x0, LB and UB are in log space for T₁ and T₂
